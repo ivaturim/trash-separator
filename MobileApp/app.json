@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Trash Separator",
+    "slug": "trash-separator-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Use the camera to photograph waste items, scan barcodes, and guide you into position in Guided Mode.",
+        "NSPhotoLibraryUsageDescription": "Choose waste item photos from your gallery.",
+        "NSMicrophoneUsageDescription": "Listen for spoken commands in Voice Mode and Guided Mode, such as take a photo, ask, and stop.",
+        "NSSpeechRecognitionUsageDescription": "Recognise spoken commands in Voice Mode and Guided Mode, such as take a photo, ask, and stop."
+      }
+    },
+    "android": {
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES", "RECORD_AUDIO"]
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Choose waste item photos from your gallery.",
+          "cameraPermission": "Use the camera to classify waste items."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Use the camera to scan barcodes on packaged goods."
+        }
+      ]
+    ]
+  }
+}

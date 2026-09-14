@@ -1,0 +1,11 @@
+.DS_Store
+.venv-path-b/
+node_modules/
+.expo/
+.tmp-tests/
+.env
+.env.local
+Dataset/
+Dataset 2/
+Models/
+*.zip
