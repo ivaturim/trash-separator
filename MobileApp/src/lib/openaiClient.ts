@@ -1,7 +1,13 @@
+import { Platform } from "react-native";
+
 import { culturalPrompt } from "./aiCulturalPrompts";
 import { LANGUAGE_META, type AppLanguage } from "./languages";
 
 const CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
+// On the website, requests go to our own Vercel function (api/chat.js), which
+// adds the OpenAI key on the server. The phone app still calls OpenAI directly.
+const IS_WEB = Platform.OS === "web";
+const WEB_PROXY_URL = "/api/chat";
 const MODEL = "gpt-4o-mini";
 const REQUEST_TIMEOUT_MS = 30000;
 const MAX_ATTEMPTS = 3;
@@ -41,6 +47,7 @@ export function buildSystemPrompt(
 }
 
 export function hasApiKey(): boolean {
+  if (IS_WEB) return true;
   return getApiKey().length > 0;
 }
 
@@ -83,7 +90,9 @@ function messageForStatus(status: number, payload: any): string {
   const apiCode: string | undefined = payload?.error?.code;
 
   if (status === 401 || status === 403) {
-    return "Your OpenAI API key was rejected. Check EXPO_PUBLIC_OPENAI_API_KEY in your .env file.";
+    return IS_WEB
+      ? "The OpenAI key on the server was rejected. Check OPENAI_API_KEY in Vercel."
+      : "Your OpenAI API key was rejected. Check EXPO_PUBLIC_OPENAI_API_KEY in your .env file.";
   }
   if (status === 404) {
     return `Your OpenAI account cannot access the ${MODEL} model.`;
@@ -117,7 +126,7 @@ export async function requestAssistantReply(
   history: ChatMessage[],
 ): Promise<string> {
   const apiKey = getApiKey();
-  if (!apiKey) {
+  if (!IS_WEB && !apiKey) {
     throw new ChatRequestError(
       "No OpenAI API key found. Copy .env.example to .env, add your key, then restart the dev server.",
     );
@@ -135,12 +144,14 @@ export async function requestAssistantReply(
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
-      const response = await fetch(CHAT_COMPLETIONS_URL, {
+      const response = await fetch(IS_WEB ? WEB_PROXY_URL : CHAT_COMPLETIONS_URL, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
+        headers: IS_WEB
+          ? { "Content-Type": "application/json" }
+          : {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
         body: JSON.stringify({
           model: MODEL,
           messages,
