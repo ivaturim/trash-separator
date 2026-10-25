@@ -3,7 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "react-native";
 import { useTranslation } from "react-i18next";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-
+import "./src/lib/webSpeechRecognizer";
 import VoiceFab from "./src/components/VoiceFab";
 import { navigationRef } from "./src/navigation/ref";
 import type { RootStackParamList } from "./src/navigation/types";
