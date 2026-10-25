@@ -310,14 +310,29 @@ export default function ChatScreen({ navigation, route }: Props) {
             placeholderTextColor="#9ca3af"
             editable={!keyMissing}
             multiline
+            blurOnSubmit={false}
             onSubmitEditing={() => send(draft)}
+            onKeyPress={(event) => {
+              if (event.nativeEvent.key !== "Enter") return;
+              const native = event.nativeEvent as { shiftKey?: boolean };
+              if (native.shiftKey) return;
+              if (typeof event.preventDefault === "function") {
+                event.preventDefault();
+              }
+              send(draft);
+            }}
           />
           <TouchableOpacity
             style={[styles.sendButton, !canSend && styles.sendButtonDisabled]}
             onPress={() => send(draft)}
             disabled={!canSend}
+            accessibilityRole="button"
+            accessibilityLabel={t("chat.send")}
           >
-            <Feather name="arrow-up" size={20} color="#ffffff" />
+            <Feather name="arrow-up" size={18} color="#ffffff" />
+            {Platform.OS === "web" && (
+              <Text style={styles.sendLabel}>{t("chat.send")}</Text>
+            )}
           </TouchableOpacity>
         </View>
         <Text style={styles.disclaimer}>{t("chat.disclaimer")}</Text>
@@ -518,9 +533,11 @@ const styles = StyleSheet.create({
     paddingLeft: 18,
     paddingRight: 6,
     paddingVertical: 6,
+    overflow: "visible",
   },
   input: {
     flex: 1,
+    minWidth: 0,
     color: "#111827",
     fontSize: 16,
     maxHeight: 120,
@@ -528,12 +545,21 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   sendButton: {
-    width: 38,
+    flexShrink: 0,
+    minWidth: 38,
     height: 38,
+    paddingHorizontal: Platform.OS === "web" ? 12 : 0,
     borderRadius: 19,
     backgroundColor: "#1e293b",
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  sendLabel: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800",
   },
   sendButtonDisabled: {
     backgroundColor: "#cbd5e1",

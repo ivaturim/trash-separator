@@ -20,7 +20,8 @@ const SIZE = 64;
 
 /**
  * Persistent microphone control. Hidden while the full overlay is up (that
- * screen has its own larger mic) and while Guided Mode owns the camera.
+ * screen has its own larger mic), while Guided Mode owns the camera, and on
+ * Ask AI so it cannot cover the Send button on a desktop browser.
  */
 export default function VoiceFab() {
   const insets = useSafeAreaInsets();
@@ -32,7 +33,9 @@ export default function VoiceFab() {
   const spin = useSharedValue(0);
 
   const hidden =
-    routeName === "GuidedMode" || (isActive(context) && layout === "full");
+    routeName === "GuidedMode" ||
+    routeName === "Chat" ||
+    (isActive(context) && layout === "full");
 
   const color =
     context.state === "listening"
