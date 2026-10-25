@@ -9,3 +9,7 @@ Dataset/
 Dataset 2/
 Models/
 *.zip
+
+__pycache__/
+trash-separator-api/
+.tmp-tests/
