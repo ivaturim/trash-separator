@@ -1,4 +1,5 @@
 import { File } from "expo-file-system";
+import { Platform } from "react-native";
 
 import { API_KEY, SEGREGATE_ENDPOINT } from "../config";
 
@@ -38,18 +39,25 @@ function getImageType(image: ImageForUpload): string {
 export async function classifyWasteImage(
   image: ImageForUpload,
 ): Promise<SegregationResponse> {
-  // Expo's fetch rejects React Native's `{ uri, name, type }` form parts, and
-  // React Native's Blob cannot be built from bytes. A part exposing `bytes()`,
-  // `name` and `type` is the shape Expo's multipart encoder accepts.
-  const file = new File(image.uri);
-  const part = {
-    name: getImageName(image),
-    type: getImageType(image),
-    bytes: () => file.bytes(),
-  };
-
   const formData = new FormData();
-  formData.append("image", part as unknown as Blob);
+
+  if (Platform.OS === "web") {
+    // In a browser the picked photo is a blob:/data: URL and expo-file-system's
+    // File class is not available, so read it with fetch and send a real Blob.
+    const blob = await (await fetch(image.uri)).blob();
+    formData.append("image", blob, getImageName(image));
+  } else {
+    // Expo's fetch rejects React Native's `{ uri, name, type }` form parts, and
+    // React Native's Blob cannot be built from bytes. A part exposing `bytes()`,
+    // `name` and `type` is the shape Expo's multipart encoder accepts.
+    const file = new File(image.uri);
+    const part = {
+      name: getImageName(image),
+      type: getImageType(image),
+      bytes: () => file.bytes(),
+    };
+    formData.append("image", part as unknown as Blob);
+  }
 
   const response = await fetch(SEGREGATE_ENDPOINT, {
     method: "POST",
