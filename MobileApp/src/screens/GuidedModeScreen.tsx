@@ -6,6 +6,7 @@ import { Accelerometer } from "expo-sensors";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -39,6 +40,7 @@ import {
 } from "../lib/historyStore";
 import { speechQueue } from "../lib/speechQueue";
 import { speechLocale } from "../lib/deviceLocale";
+import { captureOnWeb } from "../lib/webPhotoCapture";
 import {
   getSpeechRecognizer,
   parseVoiceCommand,
@@ -368,8 +370,29 @@ export default function GuidedModeScreen({ navigation }: Props) {
     navigation.goBack();
   }
 
-  function useGalleryInstead() {
+  function captureNow() {
+    if (phaseRef.current === "countdown") {
+      capturePhoto();
+      return;
+    }
+    if (phaseRef.current !== "guiding" && phaseRef.current !== "starting") {
+      return;
+    }
+    cancelFrameLoop();
+    changePhase("countdown");
+    capturePhoto();
+  }
+
+  async function useGalleryInstead() {
     speechQueue.stop();
+    if (Platform.OS === "web") {
+      // Home's image picker is blocked unless it follows a tap, so stay here
+      // and show the in-page "Tap to choose a photo" button.
+      const photo = await captureOnWeb("library");
+      if (!photo) return;
+      await classifyPhoto(photo.uri);
+      return;
+    }
     navigation.navigate("Home", { pendingCapture: "library" });
   }
 
@@ -387,18 +410,25 @@ export default function GuidedModeScreen({ navigation }: Props) {
   }, [settings.speechRate]);
 
   useEffect(() => {
+    if (Platform.OS === "web") return;
     if (!permission) return;
     if (!permission.granted && permission.canAskAgain) requestPermission();
   }, [permission, requestPermission]);
 
   // Guidance leans on shake detection, so the sensor runs for the whole screen
-  // rather than being started and stopped with each phase.
+  // rather than being started and stopped with each phase. The website has no
+  // accelerometer module — calling addListener there crashed the page.
   useEffect(() => {
-    Accelerometer.setUpdateInterval(120);
-    const subscription = Accelerometer.addListener(({ x, y, z }) => {
-      shakeRef.current.push(x, y, z);
-    });
-    return () => subscription.remove();
+    if (Platform.OS === "web") return;
+    try {
+      Accelerometer.setUpdateInterval(120);
+      const subscription = Accelerometer.addListener(({ x, y, z }) => {
+        shakeRef.current.push(x, y, z);
+      });
+      return () => subscription.remove();
+    } catch {
+      return undefined;
+    }
   }, []);
 
   useEffect(() => {
@@ -578,6 +608,19 @@ export default function GuidedModeScreen({ navigation }: Props) {
                 {Math.round(result.entry.confidencePercent)}% confidence
               </Text>
             </View>
+          )}
+
+          {Platform.OS === "web" &&
+            (phase === "starting" || showGuideBox) && (
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={captureNow}
+              accessibilityRole="button"
+              accessibilityLabel="Take photo now"
+              accessibilityHint="Captures the current camera view and classifies it"
+            >
+              <Text style={styles.primaryButtonText}>Take photo now</Text>
+            </TouchableOpacity>
           )}
 
           {showActions && (

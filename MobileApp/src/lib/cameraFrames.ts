@@ -2,6 +2,7 @@ import type { CameraView } from "expo-camera";
 import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import decodeJpeg from "jpeg-js/lib/decoder";
+import { Platform } from "react-native";
 
 import { analyzeRgbaFrame, type FrameAnalysis } from "./frameGuidance";
 
@@ -30,6 +31,68 @@ const ANALYSIS_WIDTH = 96;
  *   should treat that as "no reading this tick" rather than "no item".
  */
 export async function captureAnalysisFrame(
+  camera: CameraView,
+): Promise<FrameAnalysis | null> {
+  if (Platform.OS === "web") {
+    return captureAnalysisFrameWeb(camera);
+  }
+
+  return captureAnalysisFrameNative(camera);
+}
+
+/**
+ * On the website, `pictureRef`, ImageManipulator, and expo-file-system File
+ * are not available. Expo Camera already draws the live video to a canvas and
+ * returns a data URL, so we shrink that in the page and run the same Sobel
+ * pass as native.
+ */
+async function captureAnalysisFrameWeb(
+  camera: CameraView,
+): Promise<FrameAnalysis | null> {
+  try {
+    const photo = await camera.takePictureAsync({
+      shutterSound: false,
+      exif: false,
+      quality: 0.2,
+    });
+    if (!photo?.uri) return null;
+    return await analyzeImageUriOnWeb(photo.uri);
+  } catch {
+    return null;
+  }
+}
+
+function analyzeImageUriOnWeb(uri: string): Promise<FrameAnalysis | null> {
+  return new Promise((resolve) => {
+    const image = document.createElement("img");
+    image.onload = () => {
+      try {
+        const width = ANALYSIS_WIDTH;
+        const height = Math.max(
+          1,
+          Math.round((image.height / Math.max(1, image.width)) * width),
+        );
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.drawImage(image, 0, 0, width, height);
+        const { data } = ctx.getImageData(0, 0, width, height);
+        resolve(analyzeRgbaFrame(data, width, height));
+      } catch {
+        resolve(null);
+      }
+    };
+    image.onerror = () => resolve(null);
+    image.src = uri;
+  });
+}
+
+async function captureAnalysisFrameNative(
   camera: CameraView,
 ): Promise<FrameAnalysis | null> {
   let savedUri: string | null = null;
