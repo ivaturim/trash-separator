@@ -10,6 +10,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { Platform } from "react-native";
 
 import { classifyWasteImage } from "../api/trashApi";
 import { useVoiceCommand } from "../hooks/useVoiceCommand";
@@ -33,6 +34,7 @@ import {
   type ChatMessage,
 } from "../lib/openaiClient";
 import { speechQueue } from "../lib/speechQueue";
+import { captureOnWeb } from "../lib/webPhotoCapture";
 import { isVoiceInputAvailable } from "../lib/voiceCommands";
 import { phrasesFor } from "../lib/voicePhrases";
 import {
@@ -321,6 +323,19 @@ export function VoiceModeProvider({ children }: { children: ReactNode }) {
   async function captureFrom(source: "camera" | "library") {
     const generation = generationRef.current;
     await voiceRef.current.stop();
+
+    if (Platform.OS === "web") {
+      // Browsers block the image picker unless it follows a tap, so on the
+      // website use an in-page camera (auto countdown) or a tap-to-choose button.
+      const webPhoto = await captureOnWeb(source);
+      if (!stillCurrent(generation)) return;
+      if (!webPhoto) {
+        speakThenListen(phrases.cancelled, "command");
+        return;
+      }
+      await classifyImage(webPhoto);
+      return;
+    }
 
     const permission =
       source === "camera"
