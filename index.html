@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Trash Separator</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --card: #ffffff;
+      --ink: #1a1a1a;
+      --muted: #6b7280;
+      --recyclable: #10b981;
+      --trash: #ef4444;
+      --border: #e5e7eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      margin: 0;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+    }
+    .app {
+      max-width: 720px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    h1 { margin: 0; font-size: 28px; }
+    p.lead { color: var(--muted); margin: 0; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .drop {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .drop:hover, .drop.dragover { border-color: var(--ink); color: var(--ink); }
+    .drop input { display: none; }
+    .preview {
+      margin-top: 16px;
+      display: none;
+      text-align: center;
+    }
+    .preview img, .preview video {
+      max-width: 100%;
+      max-height: 320px;
+      border-radius: 8px;
+    }
+    .results { display: none; margin-top: 16px; }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    .bar-label { width: 100px; font-weight: 500; }
+    .bar-track {
+      flex: 1;
+      height: 10px;
+      background: #f0f1f4;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.3s;
+    }
+    .bar-value { width: 50px; text-align: right; color: var(--muted); }
+    .verdict {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .verdict.recyclable { background: #d1fae5; color: #065f46; }
+    .verdict.trash { background: #fee2e2; color: #991b1b; }
+    .status { color: var(--muted); font-size: 14px; margin-top: 8px; }
+    button.action {
+      margin-top: 12px;
+      padding: 10px 16px;
+      background: var(--ink);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div>
+      <h1>Trash Separator</h1>
+      <p class="lead">Upload an image or use your webcam to classify trash.</p>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <button class="tab active" data-tab="upload">Upload Image</button>
+        <button class="tab" data-tab="webcam">Webcam</button>
+      </div>
+
+      <div id="upload-pane">
+        <label class="drop" id="drop">
+          <input type="file" id="file" accept="image/*" />
+          <strong>Click to choose an image</strong><br />
+          <span>or drag &amp; drop here</span>
+        </label>
+        <div class="preview" id="upload-preview">
+          <img id="preview-img" alt="" />
+        </div>
+      </div>
+
+      <div id="webcam-pane" style="display:none">
+        <div class="preview" style="display:block">
+          <video id="video" autoplay playsinline muted></video>
+        </div>
+        <button class="action" id="start-webcam">Start Webcam</button>
+      </div>
+
+      <div class="status" id="status">Loading model...</div>
+
+      <div class="results" id="results">
+        <div id="bars"></div>
+        <div class="verdict" id="verdict"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+  <script>
+    const MODEL_URL = "./Dataset/Model/";
+    const status = document.getElementById("status");
+    const results = document.getElementById("results");
+    const bars = document.getElementById("bars");
+    const verdict = document.getElementById("verdict");
+
+    let model = null;
+    let webcamStream = null;
+    let webcamRAF = null;
+
+    // ---- Model loading ----
+    (async () => {
+      try {
+        model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
+        status.textContent = "Model loaded. Drop in an image to classify.";
+      } catch (e) {
+        status.textContent = "Could not load model. Make sure model.json, weights.bin, and metadata.json are inside the ./model/ folder.";
+        console.error(e);
+      }
+    })();
+
+    // ---- Tabs ----
+    document.querySelectorAll(".tab").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        const t = btn.dataset.tab;
+        document.getElementById("upload-pane").style.display = t === "upload" ? "block" : "none";
+        document.getElementById("webcam-pane").style.display = t === "webcam" ? "block" : "none";
+        if (t !== "webcam") stopWebcam();
+      });
+    });
+
+    // ---- Upload flow ----
+    const drop = document.getElementById("drop");
+    const fileInput = document.getElementById("file");
+    const previewImg = document.getElementById("preview-img");
+    const uploadPreview = document.getElementById("upload-preview");
+
+    drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("dragover"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("dragover"));
+    drop.addEventListener("drop", e => {
+      e.preventDefault();
+      drop.classList.remove("dragover");
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener("change", e => {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    async function handleFile(file) {
+      if (!model) { status.textContent = "Model not loaded yet."; return; }
+      const url = URL.createObjectURL(file);
+      previewImg.src = url;
+      uploadPreview.style.display = "block";
+      await new Promise(r => (previewImg.onload = r));
+      const preds = await model.predict(previewImg);
+      renderPredictions(preds);
+    }
+
+    // ---- Webcam flow ----
+    const video = document.getElementById("video");
+    const startBtn = document.getElementById("start-webcam");
+
+    startBtn.addEventListener("click", async () => {
+      if (!model) { status.textContent = "Model not loaded yet."; return; }
+      try {
+        webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = webcamStream;
+        startBtn.style.display = "none";
+        loopWebcam();
+      } catch (e) {
+        status.textContent = "Could not access webcam: " + e.message;
+      }
+    });
+
+    async function loopWebcam() {
+      if (!webcamStream) return;
+      const preds = await model.predict(video);
+      renderPredictions(preds);
+      webcamRAF = requestAnimationFrame(loopWebcam);
+    }
+
+    function stopWebcam() {
+      if (webcamRAF) cancelAnimationFrame(webcamRAF);
+      if (webcamStream) {
+        webcamStream.getTracks().forEach(t => t.stop());
+        webcamStream = null;
+      }
+      startBtn.style.display = "inline-block";
+    }
+
+    // ---- Rendering ----
+    function renderPredictions(preds) {
+      results.style.display = "block";
+      bars.innerHTML = "";
+      let topClass = preds[0];
+      preds.forEach(p => {
+        if (p.probability > topClass.probability) topClass = p;
+        const color = p.className.toLowerCase().includes("recycl") ? "var(--recyclable)" : "var(--trash)";
+        const pct = (p.probability * 100).toFixed(1);
+        const row = document.createElement("div");
+        row.className = "bar-row";
+        row.innerHTML = `
+          <div class="bar-label">${p.className}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+          <div class="bar-value">${pct}%</div>
+        `;
+        bars.appendChild(row);
+      });
+      const isRecyclable = topClass.className.toLowerCase().includes("recycl");
+      verdict.className = "verdict " + (isRecyclable ? "recyclable" : "trash");
+      verdict.textContent = isRecyclable
+        ? "Recyclable — put it in the recycling bin"
+        : "Trash — put it in the regular trash";
+    }
+  </script>
+</body>
+</html>

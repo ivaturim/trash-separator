@@ -5,18 +5,42 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#047857"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "scheme": "trashseparator",
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.ivaturim.trashseparator",
+      "icon": "./assets/icon.png",
       "infoPlist": {
         "NSCameraUsageDescription": "Use the camera to photograph waste items, scan barcodes, and guide you into position in Guided Mode.",
         "NSPhotoLibraryUsageDescription": "Choose waste item photos from your gallery.",
         "NSMicrophoneUsageDescription": "Listen for spoken commands in Voice Mode and Guided Mode, such as take a photo, ask, and stop.",
-        "NSSpeechRecognitionUsageDescription": "Recognise spoken commands in Voice Mode and Guided Mode, such as take a photo, ask, and stop."
+        "NSSpeechRecognitionUsageDescription": "Recognise spoken commands in Voice Mode and Guided Mode, such as take a photo, ask, and stop.",
+        "NSLocationWhenInUseUsageDescription": "Find recycling drop-off centers near you after you classify an item.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "permissions": ["CAMERA", "READ_MEDIA_IMAGES", "RECORD_AUDIO"]
+      "package": "com.ivaturim.trashseparator",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#047857"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "plugins": [
       [
@@ -31,7 +55,19 @@
         {
           "cameraPermission": "Use the camera to scan barcodes on packaged goods."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Find recycling drop-off centers near you after you classify an item."
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "fedea397-189b-4ba4-a485-34c3abe94e07"
+      }
+    },
+    "owner": "ivaturim"
   }
 }

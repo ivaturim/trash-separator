@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -33,6 +34,7 @@ const RECYCLABILITY_ICON: Record<
 };
 
 export default function BarcodeResultScreen({ navigation, route }: Props) {
+  const { t } = useTranslation();
   const { product } = route.params;
   const insets = useSafeAreaInsets();
   const hasSavedRef = useRef(false);
@@ -42,7 +44,7 @@ export default function BarcodeResultScreen({ navigation, route }: Props) {
     [product.components],
   );
 
-  const productTitle = product.name ?? `Barcode ${product.barcode}`;
+  const productTitle = product.name ?? t("barcode.unnamed", { code: product.barcode });
   const colors = disposalColors(disposal);
   const gradeColor = ecoscoreColor(product.ecoscoreGrade);
 
@@ -103,7 +105,7 @@ export default function BarcodeResultScreen({ navigation, route }: Props) {
             </Text>
           </View>
           <View style={styles.ecoscoreTextWrap}>
-            <Text style={styles.ecoscoreTitle}>Eco-Score</Text>
+            <Text style={styles.ecoscoreTitle}>{t("barcode.ecoScore")}</Text>
             <Text style={styles.ecoscoreLabel}>
               {ecoscoreLabel(product.ecoscoreGrade)}
             </Text>
@@ -113,7 +115,7 @@ export default function BarcodeResultScreen({ navigation, route }: Props) {
 
       <View style={[styles.card, styles.disposalCard, { backgroundColor: colors.background }]}>
         <Text style={[styles.disposalLabel, { color: colors.accent }]}>
-          Best disposal
+          {t("barcode.bestDisposal")}
         </Text>
         <Text style={styles.disposalHeadline}>{headline}</Text>
         <Text style={styles.disposalDetail}>{detail}</Text>
@@ -121,7 +123,7 @@ export default function BarcodeResultScreen({ navigation, route }: Props) {
 
       {product.components.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Packaging</Text>
+          <Text style={styles.sectionTitle}>{t("barcode.packaging")}</Text>
           {product.components.map((component, index) => {
             const icon = RECYCLABILITY_ICON[component.recyclability];
             return (
@@ -146,7 +148,7 @@ export default function BarcodeResultScreen({ navigation, route }: Props) {
 
       {product.packagingText && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Packaging notes</Text>
+          <Text style={styles.sectionTitle}>{t("barcode.packagingNotes")}</Text>
           <Text style={styles.packagingText}>{product.packagingText}</Text>
         </View>
       )}
@@ -158,7 +160,7 @@ export default function BarcodeResultScreen({ navigation, route }: Props) {
         >
           <Feather name="camera" size={18} color="#ffffff" />
           <Text style={styles.fallbackButtonText}>
-            Try photo classification instead
+            {t("barcode.usePhotoInstead")}
           </Text>
         </TouchableOpacity>
       )}
@@ -168,13 +170,10 @@ export default function BarcodeResultScreen({ navigation, route }: Props) {
         onPress={() => navigation.navigate("BarcodeScanner")}
       >
         <Feather name="maximize" size={18} color="#111827" />
-        <Text style={styles.secondaryButtonText}>Scan another item</Text>
+        <Text style={styles.secondaryButtonText}>{t("barcode.scanAnother")}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.footnote}>
-        Packaging and Eco-Score data comes from Open Food Facts and is
-        contributed by volunteers, so it can be incomplete or out of date.
-      </Text>
+      <Text style={styles.footnote}>{t("barcode.footnote")}</Text>
     </ScrollView>
   );
 }

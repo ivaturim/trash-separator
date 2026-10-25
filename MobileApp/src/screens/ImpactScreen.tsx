@@ -14,13 +14,16 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, G } from "react-native-svg";
 import { captureRef } from "react-native-view-shot";
+import { useTranslation } from "react-i18next";
 
 import CountUpNumber from "../components/CountUpNumber";
+import { formatNumber, formatPercent } from "../lib/format";
 import {
   loadClassifications,
   type ClassificationEntry,
 } from "../lib/historyStore";
 import { summarizeImpact } from "../lib/impactCalculator";
+import { useSettings } from "../theme/ThemeContext";
 
 const RECYCLED_COLOR = "#10b981";
 const TRASHED_COLOR = "#cbd5e1";
@@ -32,6 +35,8 @@ function capitalize(value: string): string {
 }
 
 export default function ImpactScreen() {
+  const { t } = useTranslation();
+  const { settings } = useSettings();
   const insets = useSafeAreaInsets();
   const captureAreaRef = useRef<View>(null);
   const [entries, setEntries] = useState<ClassificationEntry[] | null>(null);
@@ -68,22 +73,16 @@ export default function ImpactScreen() {
       });
 
       if (!(await Sharing.isAvailableAsync())) {
-        Alert.alert(
-          "Sharing unavailable",
-          "This device cannot open the share sheet.",
-        );
+        Alert.alert(t("impact.shareUnavailableTitle"), t("impact.shareUnavailable"));
         return;
       }
 
       await Sharing.shareAsync(uri, {
         mimeType: "image/png",
-        dialogTitle: "My recycling impact",
+        dialogTitle: t("impact.shareDialog"),
       });
     } catch {
-      Alert.alert(
-        "Could not create image",
-        "Something went wrong while building your impact summary. Please try again.",
-      );
+      Alert.alert(t("impact.shareFailedTitle"), t("impact.shareFailed"));
     } finally {
       setIsSharing(false);
     }
@@ -103,13 +102,8 @@ export default function ImpactScreen() {
         <View style={styles.emptyIllustration}>
           <Feather name="camera" size={44} color="#10b981" />
         </View>
-        <Text style={styles.emptyTitle}>
-          Take your first photo to start tracking your impact
-        </Text>
-        <Text style={styles.emptyBody}>
-          Every item you classify adds to your recycling totals, your streak,
-          and your estimated CO2 and water savings.
-        </Text>
+        <Text style={styles.emptyTitle}>{t("impact.emptyTitle")}</Text>
+        <Text style={styles.emptyBody}>{t("impact.emptyBody")}</Text>
       </View>
     );
   }
@@ -134,15 +128,18 @@ export default function ImpactScreen() {
     >
       <View ref={captureAreaRef} collapsable={false} style={styles.captureArea}>
         <View style={styles.heroCard}>
-          <Text style={styles.heroLabel}>Total items classified</Text>
+          <Text style={styles.heroLabel}>{t("impact.totalItems")}</Text>
           <CountUpNumber value={summary.totalItems} style={styles.heroNumber} />
           <Text style={styles.heroCaption}>
-            {summary.recycledItems} recycled · {summary.trashedItems} trashed
+            {t("impact.heroCaption", {
+              recycled: formatNumber(summary.recycledItems, settings.language),
+              trashed: formatNumber(summary.trashedItems, settings.language),
+            })}
           </Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Recycled vs trashed</Text>
+          <Text style={styles.cardTitle}>{t("impact.recycledVsTrashed")}</Text>
           <View style={styles.donutRow}>
             <Svg width={DONUT_SIZE} height={DONUT_SIZE}>
               <G rotation={-90} originX={DONUT_SIZE / 2} originY={DONUT_SIZE / 2}>
@@ -174,18 +171,20 @@ export default function ImpactScreen() {
                 <View style={[styles.legendDot, { backgroundColor: RECYCLED_COLOR }]} />
                 <View>
                   <Text style={styles.legendValue}>{summary.recycledItems}</Text>
-                  <Text style={styles.legendLabel}>Recycled</Text>
+                  <Text style={styles.legendLabel}>{t("impact.recycled")}</Text>
                 </View>
               </View>
               <View style={styles.legendRow}>
                 <View style={[styles.legendDot, { backgroundColor: TRASHED_COLOR }]} />
                 <View>
                   <Text style={styles.legendValue}>{summary.trashedItems}</Text>
-                  <Text style={styles.legendLabel}>Trashed</Text>
+                  <Text style={styles.legendLabel}>{t("impact.trashed")}</Text>
                 </View>
               </View>
               <Text style={styles.legendShare}>
-                {Math.round(recycledShare * 100)}% recyclable
+                {t("impact.recyclablePercent", {
+                  percent: formatPercent(recycledShare * 100, settings.language),
+                })}
               </Text>
             </View>
           </View>
@@ -199,7 +198,7 @@ export default function ImpactScreen() {
               decimals={1}
               style={styles.statNumber}
             />
-            <Text style={styles.statUnit}>kg CO2 saved</Text>
+            <Text style={styles.statUnit}>{t("impact.co2Saved")}</Text>
           </View>
           <View style={[styles.card, styles.statCard]}>
             <Feather name="droplet" size={20} color="#0ea5e9" />
@@ -208,7 +207,7 @@ export default function ImpactScreen() {
               decimals={1}
               style={styles.statNumber}
             />
-            <Text style={styles.statUnit}>litres water saved</Text>
+            <Text style={styles.statUnit}>{t("impact.waterSaved")}</Text>
           </View>
         </View>
 
@@ -219,16 +218,14 @@ export default function ImpactScreen() {
           <View style={styles.streakTextWrap}>
             <CountUpNumber value={summary.streakDays} style={styles.streakNumber} />
             <Text style={styles.streakLabel}>
-              {summary.streakDays === 1 ? "day streak" : "day streak"}
+              {t("impact.streakDays", { count: summary.streakDays })}
             </Text>
           </View>
-          <Text style={styles.streakHint}>
-            Consecutive days with at least one classification
-          </Text>
+          <Text style={styles.streakHint}>{t("impact.streakHint")}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Top materials</Text>
+          <Text style={styles.cardTitle}>{t("impact.topMaterials")}</Text>
           {summary.topMaterials.map((material, index) => (
             <View key={material.material} style={styles.materialRow}>
               <Text style={styles.materialRank}>{index + 1}</Text>
@@ -253,7 +250,7 @@ export default function ImpactScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>This week</Text>
+          <Text style={styles.cardTitle}>{t("impact.thisWeek")}</Text>
           <View style={styles.weekRow}>
             {summary.thisWeek.map((day) => (
               <View key={day.label} style={styles.weekColumn}>
@@ -269,7 +266,7 @@ export default function ImpactScreen() {
                   />
                 </View>
                 <Text style={[styles.weekLabel, day.isToday && styles.weekLabelToday]}>
-                  {day.label}
+                  {t(`weekdays.${day.label}`)}
                 </Text>
               </View>
             ))}
@@ -287,13 +284,10 @@ export default function ImpactScreen() {
         ) : (
           <Feather name="share-2" size={18} color="#ffffff" />
         )}
-        <Text style={styles.shareButtonText}>Share My Impact</Text>
+        <Text style={styles.shareButtonText}>{t("impact.shareImpact")}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.footnote}>
-        Savings are estimates based on average per-item coefficients, not
-        measurements of your specific items.
-      </Text>
+      <Text style={styles.footnote}>{t("impact.footnote")}</Text>
     </ScrollView>
   );
 }

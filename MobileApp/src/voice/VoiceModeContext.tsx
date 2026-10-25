@@ -69,15 +69,20 @@ type SelectedImage = {
   mimeType?: string | null;
 };
 
+let hapticsEnabled = true;
+
 function hapticLight() {
+  if (!hapticsEnabled) return;
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
 }
 
 function hapticSelect() {
+  if (!hapticsEnabled) return;
   Haptics.selectionAsync().catch(() => undefined);
 }
 
 function hapticError() {
+  if (!hapticsEnabled) return;
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(
     () => undefined,
   );
@@ -104,6 +109,7 @@ function createChatMessage(role: ChatMessage["role"], content: string): ChatMess
 
 export function VoiceModeProvider({ children }: { children: ReactNode }) {
   const settings = useVoiceModeSettings();
+  hapticsEnabled = settings.hapticFeedback;
   const phrases = phrasesFor(settings.language);
 
   const [context, dispatch] = useReducer(voiceReducer, INITIAL_CONTEXT);
@@ -384,7 +390,10 @@ export function VoiceModeProvider({ children }: { children: ReactNode }) {
       const userMessage = createChatMessage("user", transcript);
       const nextHistory = [...history, userMessage];
       const reply = await requestAssistantReply(
-        buildSystemPrompt(entry.segregation, entry.confidencePercent),
+        buildSystemPrompt(entry.segregation, entry.confidencePercent, {
+          language: settings.appLanguage,
+          simpleLanguage: settings.simpleLanguage,
+        }),
         nextHistory,
       );
       if (!stillCurrent(generation)) return;

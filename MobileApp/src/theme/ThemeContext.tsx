@@ -7,8 +7,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, View } from "react-native";
 
+import { getFontFamily } from "../lib/fonts";
+import { speechLocale } from "../lib/deviceLocale";
+import { initI18n, i18n } from "../lib/i18n";
+import {
+  scriptScale as scriptScaleFor,
+  voiceLanguageFor,
+  type AppLanguage,
+} from "../lib/languages";
+import { applyRtlPreference, isRtlLanguage, needsRtlRestart } from "../lib/rtl";
 import {
   DEFAULT_SETTINGS,
   loadSettings,
@@ -16,6 +25,7 @@ import {
   type AppSettings,
   type PaletteId,
 } from "../lib/settingsStore";
+import { speechQueue } from "../lib/speechQueue";
 
 export type ThemeColors = {
   background: string;
@@ -39,7 +49,7 @@ export type ThemeColors = {
   guide: string;
 };
 
-export type Theme = {
+export type PaletteTheme = {
   id: PaletteId;
   label: string;
   description: string;
@@ -49,12 +59,19 @@ export type Theme = {
   colors: ThemeColors;
 };
 
+export type Theme = PaletteTheme & {
+  language: AppLanguage;
+  fontFamily?: string;
+  scriptScale: number;
+  isRTL: boolean;
+};
+
 /**
  * `colorBlind` swaps the green/amber pair for blue/orange, which stays
  * distinguishable under protanopia and deuteranopia — the two most common
  * forms — where green and amber collapse into each other.
  */
-export const THEMES: Record<PaletteId, Theme> = {
+export const THEMES: Record<PaletteId, PaletteTheme> = {
   standard: {
     id: "standard",
     label: "Standard",
@@ -135,13 +152,32 @@ export const THEMES: Record<PaletteId, Theme> = {
   },
 };
 
+function resolveTheme(palette: PaletteId, language: AppLanguage): Theme {
+  const family = getFontFamily(language);
+  return {
+    ...THEMES[palette],
+    language,
+    fontFamily:
+      family === "System" || family === "sans-serif" ? undefined : family,
+    scriptScale: scriptScaleFor(language),
+    isRTL: isRtlLanguage(language),
+  };
+}
+
+function applyLanguageRuntime(language: AppLanguage) {
+  speechQueue.setLanguage(speechLocale(language));
+  if (i18n.isInitialized && i18n.language !== language) {
+    void i18n.changeLanguage(language);
+  }
+}
+
 type ThemeContextValue = {
   theme: Theme;
   settings: AppSettings;
   /** False until the stored settings have been read (or failed to read). */
   settingsReady: boolean;
   updateSettings: (patch: Partial<AppSettings>) => void;
-  /** Mirrors the OS "Reduce Motion" switch. */
+  /** Mirrors the OS "Reduce Motion" switch, or the Settings override. */
   reduceMotion: boolean;
   /** True while VoiceOver or TalkBack is running. */
   screenReaderEnabled: boolean;
@@ -152,18 +188,23 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [settingsReady, setSettingsReady] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const [osReduceMotion, setOsReduceMotion] = useState(false);
   const [screenReaderEnabled, setScreenReaderEnabled] = useState(false);
 
   useEffect(() => {
     let isActive = true;
-    loadSettings()
-      .then((stored) => {
-        if (isActive) setSettings(stored);
-      })
-      .finally(() => {
-        if (isActive) setSettingsReady(true);
-      });
+    (async () => {
+      const stored = await loadSettings();
+      await initI18n(stored.language);
+      applyLanguageRuntime(stored.language);
+      if (needsRtlRestart(stored.language)) {
+        applyRtlPreference(stored.language);
+      }
+      if (isActive) {
+        setSettings(stored);
+        setSettingsReady(true);
+      }
+    })();
     return () => {
       isActive = false;
     };
@@ -172,7 +213,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isActive = true;
     AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (isActive) setReduceMotion(enabled);
+      if (isActive) setOsReduceMotion(enabled);
     });
     AccessibilityInfo.isScreenReaderEnabled().then((enabled) => {
       if (isActive) setScreenReaderEnabled(enabled);
@@ -180,7 +221,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     const motionListener = AccessibilityInfo.addEventListener(
       "reduceMotionChanged",
-      setReduceMotion,
+      setOsReduceMotion,
     );
     const readerListener = AccessibilityInfo.addEventListener(
       "screenReaderChanged",
@@ -196,24 +237,43 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const updateSettings = useCallback((patch: Partial<AppSettings>) => {
     setSettings((current) => {
-      const next = { ...current, ...patch };
-      // Persist in the background; the UI already reflects the new value.
+      const next: AppSettings = { ...current, ...patch };
+      if (patch.language) {
+        next.voiceLanguage = voiceLanguageFor(patch.language);
+        applyLanguageRuntime(patch.language);
+      }
       saveSettings(next).catch(() => undefined);
       return next;
     });
   }, []);
 
+  const theme = useMemo(
+    () => resolveTheme(settings.palette, settings.language),
+    [settings.palette, settings.language],
+  );
+
   const value = useMemo<ThemeContextValue>(
     () => ({
-      theme: THEMES[settings.palette],
+      theme,
       settings,
       settingsReady,
       updateSettings,
-      reduceMotion,
+      reduceMotion: osReduceMotion || settings.reduceMotion,
       screenReaderEnabled,
     }),
-    [settings, settingsReady, updateSettings, reduceMotion, screenReaderEnabled],
+    [
+      theme,
+      settings,
+      settingsReady,
+      updateSettings,
+      osReduceMotion,
+      screenReaderEnabled,
+    ],
   );
+
+  if (!settingsReady) {
+    return <View style={{ flex: 1, backgroundColor: "#f5f6f8" }} />;
+  }
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

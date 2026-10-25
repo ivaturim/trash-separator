@@ -1,3 +1,6 @@
+import { culturalPrompt } from "./aiCulturalPrompts";
+import { LANGUAGE_META, type AppLanguage } from "./languages";
+
 const CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
 const MODEL = "gpt-4o-mini";
 const REQUEST_TIMEOUT_MS = 30000;
@@ -21,8 +24,14 @@ type OpenAiMessage = {
 export function buildSystemPrompt(
   segregation: string,
   confidencePercent: number,
+  options: { language?: AppLanguage; simpleLanguage?: boolean } = {},
 ): string {
+  const language = options.language ?? "en";
+  const meta = LANGUAGE_META[language];
+  const cultural = culturalPrompt(language, options.simpleLanguage);
   return (
+    `${cultural}\n\n` +
+    `Always reply in ${meta.englishName} (${meta.nativeName}). ` +
     "You are a recycling and waste disposal expert. The user just photographed " +
     `an item that was classified as ${segregation} with ` +
     `${confidencePercent.toFixed(0)}% confidence. Answer their follow-up ` +

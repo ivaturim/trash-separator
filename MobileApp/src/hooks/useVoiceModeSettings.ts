@@ -1,7 +1,5 @@
-import {
-  localeFor,
-  type VoiceLanguage,
-} from "../lib/settingsStore";
+import { speechLocale } from "../lib/deviceLocale";
+import { voiceLanguageFor, type VoiceLanguage } from "../lib/languages";
 import { useSettings } from "../theme/ThemeContext";
 
 /**
@@ -15,13 +13,16 @@ export function useVoiceModeSettings() {
     ready: settingsReady,
     autoListen: settings.autoListen,
     speechRate: settings.speechRate,
-    language: settings.voiceLanguage,
-    locale: localeFor(settings.voiceLanguage),
+    language: voiceLanguageFor(settings.language),
+    appLanguage: settings.language,
+    locale: speechLocale(settings.language),
+    simpleLanguage: settings.simpleLanguage,
+    hapticFeedback: settings.hapticFeedback,
     voiceDebug: settings.voiceDebug,
     setAutoListen: (autoListen: boolean) => updateSettings({ autoListen }),
     setSpeechRate: (speechRate: number) => updateSettings({ speechRate }),
     setLanguage: (voiceLanguage: VoiceLanguage) =>
-      updateSettings({ voiceLanguage }),
+      updateSettings({ language: voiceLanguage }),
     setVoiceDebug: (voiceDebug: boolean) => updateSettings({ voiceDebug }),
   };
 }

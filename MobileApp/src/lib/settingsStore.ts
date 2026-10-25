@@ -1,5 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { deviceLanguage } from "./deviceLocale";
+import {
+  USER_LANGUAGE_KEY,
+  isAppLanguage,
+  voiceLanguageFor,
+  type AppLanguage,
+  type VoiceLanguage,
+} from "./languages";
+import type { UnitPreference } from "./format";
+
 const SETTINGS_KEY = "appSettings";
 
 export type PaletteId = "standard" | "colorBlind" | "highContrast";
@@ -8,26 +18,8 @@ export const MIN_SPEECH_RATE = 0.5;
 export const MAX_SPEECH_RATE = 2;
 export const SPEECH_RATE_STEP = 0.1;
 
-/** Languages with both an intent keyword map and a spoken phrase set. */
-export type VoiceLanguage = "en" | "es" | "zh" | "hi";
-
-export const VOICE_LANGUAGES: {
-  id: VoiceLanguage;
-  label: string;
-  /** BCP-47 tag handed to speech recognition and text to speech. */
-  locale: string;
-}[] = [
-  { id: "en", label: "English", locale: "en-US" },
-  { id: "es", label: "Español", locale: "es-ES" },
-  { id: "zh", label: "中文", locale: "zh-CN" },
-  { id: "hi", label: "हिन्दी", locale: "hi-IN" },
-];
-
-export function localeFor(language: VoiceLanguage): string {
-  return (
-    VOICE_LANGUAGES.find((entry) => entry.id === language)?.locale ?? "en-US"
-  );
-}
+export type { VoiceLanguage };
+export { localeFor } from "./languages";
 
 export type AppSettings = {
   palette: PaletteId;
@@ -37,7 +29,15 @@ export type AppSettings = {
   readResultsAloud: boolean;
   /** Starts voice mode as soon as the app opens. */
   autoListen: boolean;
+  /** Whole-app locale. Voice Mode phrasebooks fall back via voiceLanguage. */
+  language: AppLanguage;
+  /** Kept in sync with `language` for the four-language intent parser. */
   voiceLanguage: VoiceLanguage;
+  unitPreference: UnitPreference;
+  simpleLanguage: boolean;
+  hapticFeedback: boolean;
+  /** Extra Reduce Motion on top of the OS switch. */
+  reduceMotion: boolean;
   /** Shows the voice state machine inspector. Only offered in development. */
   voiceDebug: boolean;
 };
@@ -47,17 +47,21 @@ export const DEFAULT_SETTINGS: AppSettings = {
   speechRate: 0.95,
   readResultsAloud: true,
   autoListen: false,
+  language: "en",
   voiceLanguage: "en",
+  unitPreference: "auto",
+  simpleLanguage: false,
+  hapticFeedback: true,
+  reduceMotion: false,
   voiceDebug: false,
 };
 
 const PALETTE_IDS: PaletteId[] = ["standard", "colorBlind", "highContrast"];
-const LANGUAGE_IDS: VoiceLanguage[] = ["en", "es", "zh", "hi"];
+const UNIT_IDS: UnitPreference[] = ["auto", "metric", "imperial"];
 
 export function clampSpeechRate(rate: number): number {
   if (!Number.isFinite(rate)) return DEFAULT_SETTINGS.speechRate;
   const clamped = Math.min(MAX_SPEECH_RATE, Math.max(MIN_SPEECH_RATE, rate));
-  // Stepping repeatedly accumulates float error, so snap to whole steps.
   return Math.round(clamped * 100) / 100;
 }
 
@@ -65,10 +69,32 @@ function parseBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
-function parseSettings(raw: string | null): AppSettings {
-  if (!raw) return DEFAULT_SETTINGS;
+function resolveLanguage(
+  storedKey: string | null,
+  parsed: { language?: unknown; voiceLanguage?: unknown },
+): AppLanguage {
+  if (isAppLanguage(storedKey)) return storedKey;
+  if (isAppLanguage(typeof parsed.language === "string" ? parsed.language : null)) {
+    return parsed.language as AppLanguage;
+  }
+  if (isAppLanguage(typeof parsed.voiceLanguage === "string" ? parsed.voiceLanguage : null)) {
+    return parsed.voiceLanguage as AppLanguage;
+  }
+  return deviceLanguage();
+}
+
+function parseSettings(raw: string | null, storedLanguage: string | null): AppSettings {
+  if (!raw) {
+    const language = resolveLanguage(storedLanguage, {});
+    return {
+      ...DEFAULT_SETTINGS,
+      language,
+      voiceLanguage: voiceLanguageFor(language),
+    };
+  }
   try {
     const parsed = JSON.parse(raw);
+    const language = resolveLanguage(storedLanguage, parsed);
     return {
       palette: PALETTE_IDS.includes(parsed?.palette)
         ? parsed.palette
@@ -79,24 +105,51 @@ function parseSettings(raw: string | null): AppSettings {
         DEFAULT_SETTINGS.readResultsAloud,
       ),
       autoListen: parseBoolean(parsed?.autoListen, DEFAULT_SETTINGS.autoListen),
-      voiceLanguage: LANGUAGE_IDS.includes(parsed?.voiceLanguage)
-        ? parsed.voiceLanguage
-        : DEFAULT_SETTINGS.voiceLanguage,
+      language,
+      voiceLanguage: voiceLanguageFor(language),
+      unitPreference: UNIT_IDS.includes(parsed?.unitPreference)
+        ? parsed.unitPreference
+        : DEFAULT_SETTINGS.unitPreference,
+      simpleLanguage: parseBoolean(
+        parsed?.simpleLanguage,
+        DEFAULT_SETTINGS.simpleLanguage,
+      ),
+      hapticFeedback: parseBoolean(
+        parsed?.hapticFeedback,
+        DEFAULT_SETTINGS.hapticFeedback,
+      ),
+      reduceMotion: parseBoolean(parsed?.reduceMotion, DEFAULT_SETTINGS.reduceMotion),
       voiceDebug: parseBoolean(parsed?.voiceDebug, DEFAULT_SETTINGS.voiceDebug),
     };
   } catch {
-    return DEFAULT_SETTINGS;
+    const language = resolveLanguage(storedLanguage, {});
+    return {
+      ...DEFAULT_SETTINGS,
+      language,
+      voiceLanguage: voiceLanguageFor(language),
+    };
   }
 }
 
 export async function loadSettings(): Promise<AppSettings> {
   try {
-    return parseSettings(await AsyncStorage.getItem(SETTINGS_KEY));
+    const [raw, storedLanguage] = await Promise.all([
+      AsyncStorage.getItem(SETTINGS_KEY),
+      AsyncStorage.getItem(USER_LANGUAGE_KEY),
+    ]);
+    const settings = parseSettings(raw, storedLanguage);
+    if (storedLanguage !== settings.language) {
+      await AsyncStorage.setItem(USER_LANGUAGE_KEY, settings.language);
+    }
+    return settings;
   } catch {
     return DEFAULT_SETTINGS;
   }
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
-  await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  await Promise.all([
+    AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)),
+    AsyncStorage.setItem(USER_LANGUAGE_KEY, settings.language),
+  ]);
 }

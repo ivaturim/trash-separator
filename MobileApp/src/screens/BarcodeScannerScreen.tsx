@@ -19,6 +19,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useTranslation } from "react-i18next";
+
 import type { RootStackParamList } from "../navigation/types";
 import {
   fetchProductByBarcode,
@@ -36,6 +38,7 @@ type ScanState =
   | { status: "failed"; barcode: string; message: string };
 
 export default function BarcodeScannerScreen({ navigation }: Props) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [state, setState] = useState<ScanState>({ status: "scanning" });
@@ -80,7 +83,7 @@ export default function BarcodeScannerScreen({ navigation }: Props) {
       const message =
         err instanceof ProductLookupError
           ? err.message
-          : "Could not look up this barcode. Please try again.";
+          : t("barcode.lookupFailed");
       setState({ status: "failed", barcode, message });
     }
   }
@@ -106,19 +109,15 @@ export default function BarcodeScannerScreen({ navigation }: Props) {
     return (
       <View style={styles.centered}>
         <Feather name="camera-off" size={40} color="#f3f4f6" />
-        <Text style={styles.permissionTitle}>Camera access needed</Text>
-        <Text style={styles.permissionBody}>
-          Allow camera access to scan barcodes on packaged items.
-        </Text>
+        <Text style={styles.permissionTitle}>{t("barcode.cameraNeeded")}</Text>
+        <Text style={styles.permissionBody}>{t("barcode.cameraBody")}</Text>
         <TouchableOpacity style={styles.primaryButton} onPress={requestPermission}>
           <Text style={styles.primaryButtonText}>
-            {permission.canAskAgain ? "Allow camera" : "Open settings"}
+            {permission.canAskAgain ? t("barcode.allowCamera") : t("barcode.openSettings")}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.linkButton} onPress={usePhotoInstead}>
-          <Text style={styles.linkButtonText}>
-            Try photo classification instead
-          </Text>
+          <Text style={styles.linkButtonText}>{t("barcode.usePhotoInstead")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -158,27 +157,27 @@ export default function BarcodeScannerScreen({ navigation }: Props) {
         </View>
         <View style={[styles.scrim, styles.bottomScrim]}>
           {state.status === "scanning" && (
-            <Text style={styles.hint}>Point camera at barcode</Text>
+            <Text style={styles.hint}>{t("barcode.alignGuide")}</Text>
           )}
 
           {state.status === "loading" && (
             <View style={styles.loadingRow}>
               <ActivityIndicator color="#ffffff" />
-              <Text style={styles.hint}>Looking up {state.barcode}...</Text>
+              <Text style={styles.hint}>{t("barcode.lookingUp")}</Text>
             </View>
           )}
 
           {state.status === "failed" && (
             <View style={styles.failureCard}>
-              <Text style={styles.failureTitle}>No packaging data</Text>
+              <Text style={styles.failureTitle}>{t("barcode.lookupFailed")}</Text>
               <Text style={styles.failureText}>{state.message}</Text>
               <TouchableOpacity style={styles.primaryButton} onPress={usePhotoInstead}>
                 <Text style={styles.primaryButtonText}>
-                  Try photo classification instead
+                  {t("barcode.usePhotoInstead")}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.linkButton} onPress={scanAgain}>
-                <Text style={styles.linkButtonText}>Scan another barcode</Text>
+                <Text style={styles.linkButtonText}>{t("barcode.scanAgain")}</Text>
               </TouchableOpacity>
             </View>
           )}

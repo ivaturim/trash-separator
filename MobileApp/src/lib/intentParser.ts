@@ -1,5 +1,5 @@
 import { ChatRequestError, hasApiKey, requestAssistantReply } from "./openaiClient";
-import type { VoiceLanguage } from "./settingsStore";
+import type { VoiceLanguage } from "./languages";
 
 export type Intent =
   | "TAKE_PHOTO"

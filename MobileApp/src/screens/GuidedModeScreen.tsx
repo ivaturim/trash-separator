@@ -38,7 +38,7 @@ import {
   type ClassificationEntry,
 } from "../lib/historyStore";
 import { speechQueue } from "../lib/speechQueue";
-import { localeFor } from "../lib/settingsStore";
+import { speechLocale } from "../lib/deviceLocale";
 import {
   getSpeechRecognizer,
   parseVoiceCommand,
@@ -297,7 +297,7 @@ export default function GuidedModeScreen({ navigation }: Props) {
 
     recognizer
       .start(
-        { locale: localeFor(settings.voiceLanguage) },
+        { locale: speechLocale(settings.language) },
         {
           onResult: (transcript) => {
             const command = parseVoiceCommand(transcript);

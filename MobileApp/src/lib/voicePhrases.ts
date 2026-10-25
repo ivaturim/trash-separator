@@ -1,4 +1,4 @@
-import type { VoiceLanguage } from "./settingsStore";
+import type { VoiceLanguage } from "./languages";
 
 export type HistoryLine = {
   segregation: string;

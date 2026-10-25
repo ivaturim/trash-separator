@@ -15,10 +15,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { classifyWasteImage, type SegregationResponse } from "../api/trashApi";
+import { formatPercent } from "../lib/format";
 import { formatEntryTimestamp } from "../lib/formatDate";
+import { localeFor } from "../lib/languages";
+import { rtlIconStyle } from "../lib/rtl";
 import {
   appendClassification,
   clearClassifications,
@@ -47,11 +51,22 @@ type CurrentClassification = {
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
+function segregationLabel(
+  value: string,
+  t: (key: string) => string,
+): string {
+  return value.toLowerCase().includes("recycl")
+    ? t("result.recyclable")
+    : t("result.trash");
+}
+
 export default function HomeScreen({ navigation, route }: Props) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const { settings } = useSettings();
   const { activate } = useVoiceMode();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const a11yLang = localeFor(settings.language);
 
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [current, setCurrent] = useState<CurrentClassification | null>(null);
@@ -95,7 +110,7 @@ export default function HomeScreen({ navigation, route }: Props) {
   async function pickFromCamera() {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("Camera permission needed", "Please allow camera access.");
+      Alert.alert(t("home.cameraNeeded"), t("home.cameraAllow"));
       return;
     }
 
@@ -113,7 +128,7 @@ export default function HomeScreen({ navigation, route }: Props) {
   async function pickFromGallery() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("Gallery permission needed", "Please allow photo access.");
+      Alert.alert(t("home.galleryNeeded"), t("home.galleryAllow"));
       return;
     }
 
@@ -143,7 +158,10 @@ export default function HomeScreen({ navigation, route }: Props) {
       if (settings.readResultsAloud) {
         speechQueue.setRate(settings.speechRate);
         speechQueue.speak(
-          `This item is ${response.segregation}. ${response.instruction}`,
+          t("result.spokenResult", {
+            segregation: segregationLabel(response.segregation, t),
+            instruction: response.instruction,
+          }),
           { interrupt: true },
         );
       }
@@ -154,7 +172,7 @@ export default function HomeScreen({ navigation, route }: Props) {
         // A failed history write must not hide a successful classification.
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setIsLoading(false);
     }
@@ -184,19 +202,23 @@ export default function HomeScreen({ navigation, route }: Props) {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={styles.title} accessibilityRole="header">
-              Trash Separator
+            <Text
+              style={styles.title}
+              accessibilityRole="header"
+              accessibilityLanguage={a11yLang}
+            >
+              {t("home.title")}
             </Text>
-            <Text style={styles.subtitle}>
-              Take or upload a photo to classify the waste item.
+            <Text style={styles.subtitle} accessibilityLanguage={a11yLang}>
+              {t("home.subtitle")}
             </Text>
           </View>
           <TouchableOpacity
             style={styles.settingsButton}
             onPress={() => navigation.navigate("Settings")}
             accessibilityRole="button"
-            accessibilityLabel="Settings"
-            accessibilityHint="Colour palette, speech speed, voice language and spoken results"
+            accessibilityLabel={t("home.settingsA11y")}
+            accessibilityHint={t("home.settingsHint")}
           >
             <Feather name="settings" size={22} color={theme.colors.text} />
           </TouchableOpacity>
@@ -206,34 +228,40 @@ export default function HomeScreen({ navigation, route }: Props) {
           style={styles.guidedButton}
           onPress={() => navigation.navigate("GuidedMode")}
           accessibilityRole="button"
-          accessibilityLabel="Guided mode"
-          accessibilityHint="Opens the camera and speaks directions to help you aim, then captures and reads the result aloud"
+          accessibilityLabel={t("home.guidedMode")}
+          accessibilityHint={t("home.guidedModeA11yHint")}
         >
           <Feather name="volume-2" size={26} color={theme.colors.onAccent} />
           <View style={styles.guidedTextWrap}>
-            <Text style={styles.guidedTitle}>Guided Mode</Text>
-            <Text style={styles.guidedSubtitle}>
-              Spoken help to aim the camera, hands free
-            </Text>
+            <Text style={styles.guidedTitle}>{t("home.guidedMode")}</Text>
+            <Text style={styles.guidedSubtitle}>{t("home.guidedModeHint")}</Text>
           </View>
-          <Feather name="chevron-right" size={24} color={theme.colors.onAccent} />
+          <Feather
+            name="chevron-right"
+            size={24}
+            color={theme.colors.onAccent}
+            style={rtlIconStyle(theme.isRTL)}
+          />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.voiceButton}
           onPress={activate}
           accessibilityRole="button"
-          accessibilityLabel="Voice mode"
-          accessibilityHint="Starts hands-free voice commands for taking photos, history, impact, and questions"
+          accessibilityLabel={t("home.voiceMode")}
+          accessibilityHint={t("home.voiceModeA11yHint")}
         >
           <Feather name="mic" size={26} color={theme.colors.accent} />
           <View style={styles.guidedTextWrap}>
-            <Text style={styles.voiceTitle}>Voice Mode</Text>
-            <Text style={styles.voiceSubtitle}>
-              Hands-free commands for the whole app
-            </Text>
+            <Text style={styles.voiceTitle}>{t("home.voiceMode")}</Text>
+            <Text style={styles.voiceSubtitle}>{t("home.voiceModeHint")}</Text>
           </View>
-          <Feather name="chevron-right" size={24} color={theme.colors.accent} />
+          <Feather
+            name="chevron-right"
+            size={24}
+            color={theme.colors.accent}
+            style={rtlIconStyle(theme.isRTL)}
+          />
         </TouchableOpacity>
 
         <View style={styles.card}>
@@ -242,19 +270,19 @@ export default function HomeScreen({ navigation, route }: Props) {
               style={styles.primaryButton}
               onPress={pickFromCamera}
               accessibilityRole="button"
-              accessibilityLabel="Take photo"
-              accessibilityHint="Opens the camera to photograph a waste item"
+              accessibilityLabel={t("home.takePhoto")}
+              accessibilityHint={t("home.takePhotoHint")}
             >
-              <Text style={styles.primaryButtonText}>Take Photo</Text>
+              <Text style={styles.primaryButtonText}>{t("home.takePhoto")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={pickFromGallery}
               accessibilityRole="button"
-              accessibilityLabel="Choose photo"
-              accessibilityHint="Picks an existing photo from your library"
+              accessibilityLabel={t("home.choosePhoto")}
+              accessibilityHint={t("home.choosePhotoHint")}
             >
-              <Text style={styles.secondaryButtonText}>Choose Photo</Text>
+              <Text style={styles.secondaryButtonText}>{t("home.choosePhoto")}</Text>
             </TouchableOpacity>
           </View>
 
@@ -263,18 +291,18 @@ export default function HomeScreen({ navigation, route }: Props) {
               style={styles.scanButton}
               onPress={() => navigation.navigate("BarcodeScanner")}
               accessibilityRole="button"
-              accessibilityLabel="Scan barcode"
-              accessibilityHint="Best for packaged goods with barcodes"
+              accessibilityLabel={t("home.scanBarcode")}
+              accessibilityHint={t("home.barcodeHint")}
             >
               <Feather name="maximize" size={18} color={theme.colors.text} />
-              <Text style={styles.scanButtonText}>Scan Barcode</Text>
+              <Text style={styles.scanButtonText}>{t("home.scanBarcode")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.infoButton}
               onPress={() => setIsTooltipVisible((visible) => !visible)}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="About barcode scanning"
+              accessibilityLabel={t("home.barcodeAbout")}
               accessibilityState={{ expanded: isTooltipVisible }}
             >
               <Feather
@@ -289,9 +317,7 @@ export default function HomeScreen({ navigation, route }: Props) {
 
           {isTooltipVisible && (
             <View style={styles.tooltip}>
-              <Text style={styles.tooltipText}>
-                Best for packaged goods with barcodes
-              </Text>
+              <Text style={styles.tooltipText}>{t("home.barcodeHint")}</Text>
             </View>
           )}
 
@@ -300,28 +326,28 @@ export default function HomeScreen({ navigation, route }: Props) {
               source={{ uri: selectedImage.uri }}
               style={styles.previewImage}
               accessibilityIgnoresInvertColors
-              accessibilityLabel="The photo being classified"
+              accessibilityLabel={t("home.photoA11y")}
             />
           )}
 
           {isLoading && (
             <View style={styles.loadingRow} accessibilityLiveRegion="polite">
               <ActivityIndicator color={theme.colors.accent} />
-              <Text style={styles.loadingText}>Classifying image...</Text>
+              <Text style={styles.loadingText}>{t("home.classifying")}</Text>
             </View>
           )}
 
           {error && (
             <View style={styles.errorCard} accessibilityLiveRegion="assertive">
-              <Text style={styles.errorTitle}>Could not classify image</Text>
+              <Text style={styles.errorTitle}>{t("home.classifyError")}</Text>
               <Text style={styles.errorText}>{error}</Text>
               <TouchableOpacity
                 style={styles.retryButton}
                 onPress={retry}
                 accessibilityRole="button"
-                accessibilityLabel="Retry classification"
+                accessibilityLabel={t("home.retryClassify")}
               >
-                <Text style={styles.retryButtonText}>Retry</Text>
+                <Text style={styles.retryButtonText}>{t("common.retry")}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -335,18 +361,18 @@ export default function HomeScreen({ navigation, route }: Props) {
                 ]}
                 accessibilityLiveRegion="polite"
               >
-                <Text style={styles.resultLabel}>Segregation</Text>
+                <Text style={styles.resultLabel}>{t("result.segregation")}</Text>
                 <Text style={styles.resultTitle}>
-                  {current.response.segregation}
+                  {segregationLabel(current.response.segregation, t)}
                 </Text>
                 <Text style={styles.resultMessage}>
                   {current.response.instruction}
                 </Text>
 
                 <View style={styles.confidenceHeader}>
-                  <Text style={styles.confidenceText}>Confidence</Text>
+                  <Text style={styles.confidenceText}>{t("result.confidence")}</Text>
                   <Text style={styles.confidenceText}>
-                    {current.entry.confidencePercent.toFixed(1)}%
+                    {formatPercent(current.entry.confidencePercent, settings.language)}
                   </Text>
                 </View>
                 <View style={styles.confidenceTrack}>
@@ -366,15 +392,31 @@ export default function HomeScreen({ navigation, route }: Props) {
                   navigation.navigate("Chat", { classification: current.entry })
                 }
                 accessibilityRole="button"
-                accessibilityLabel="Ask AI about this item"
-                accessibilityHint="Opens a chat to ask follow-up questions"
+                accessibilityLabel={t("home.askAiA11y")}
+                accessibilityHint={t("home.askAiHint")}
               >
                 <Feather
                   name="message-circle"
                   size={18}
                   color={theme.colors.onAccent}
                 />
-                <Text style={styles.askAiButtonText}>Ask AI</Text>
+                <Text style={styles.askAiButtonText}>{t("result.askAI")}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.dropoffButton}
+                onPress={() =>
+                  navigation.navigate("NearbyCenters", {
+                    material: current.entry.material,
+                    segregation: current.entry.segregation,
+                  })
+                }
+                accessibilityRole="button"
+                accessibilityLabel={t("result.findNearby")}
+                accessibilityHint={t("home.dropoffHint")}
+              >
+                <Feather name="map-pin" size={18} color={theme.colors.text} />
+                <Text style={styles.dropoffButtonText}>{t("result.findNearby")}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -384,45 +426,46 @@ export default function HomeScreen({ navigation, route }: Props) {
           style={styles.impactRow}
           onPress={() => navigation.navigate("Impact")}
           accessibilityRole="button"
-          accessibilityLabel="Your impact"
-          accessibilityHint="Shows what your classifications have saved so far"
+          accessibilityLabel={t("home.yourImpact")}
+          accessibilityHint={t("home.impactHint")}
         >
           <View style={styles.impactIcon}>
             <Feather name="bar-chart-2" size={20} color={theme.colors.accent} />
           </View>
           <View style={styles.impactTextWrap}>
-            <Text style={styles.impactTitle}>Your impact</Text>
+            <Text style={styles.impactTitle}>{t("home.yourImpact")}</Text>
             <Text style={styles.impactSubtitle}>
               {history.length === 0
-                ? "Classify an item to start tracking"
-                : `${history.length} ${history.length === 1 ? "item" : "items"} tracked so far`}
+                ? t("home.impactEmpty")
+                : t("home.impactTracked", { count: history.length })}
             </Text>
           </View>
           <Feather
             name="chevron-right"
             size={20}
             color={theme.colors.textMuted}
+            style={rtlIconStyle(theme.isRTL)}
           />
         </TouchableOpacity>
 
         <View style={styles.historyHeader}>
           <Text style={styles.sectionTitle} accessibilityRole="header">
-            Recent Classifications
+            {t("home.recentClassifications")}
           </Text>
           {history.length > 0 && (
             <TouchableOpacity
               onPress={clearLocalHistory}
               accessibilityRole="button"
-              accessibilityLabel="Clear history"
-              accessibilityHint="Deletes all saved classifications and chats"
+              accessibilityLabel={t("home.clearHistory")}
+              accessibilityHint={t("home.clearHistoryHint")}
             >
-              <Text style={styles.clearText}>Clear</Text>
+              <Text style={styles.clearText}>{t("common.clear")}</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {recentHistory.length === 0 ? (
-          <Text style={styles.emptyHistory}>No history yet.</Text>
+          <Text style={styles.emptyHistory}>{t("home.noHistory")}</Text>
         ) : (
           <FlatList
             data={recentHistory}
@@ -435,12 +478,17 @@ export default function HomeScreen({ navigation, route }: Props) {
                   navigation.navigate("Chat", { classification: item })
                 }
                 accessibilityRole="button"
-                accessibilityLabel={`${item.segregation}, ${
+                accessibilityLabel={`${segregationLabel(item.segregation, t)}, ${
                   item.type === "barcode"
-                    ? (item.label ?? "barcode scan")
-                    : `${item.confidencePercent.toFixed(0)} percent confidence`
-                }, ${formatEntryTimestamp(item.timestamp)}`}
-                accessibilityHint="Opens a chat about this item"
+                    ? (item.label ?? t("home.barcodeScan"))
+                    : t("home.confidenceLine", {
+                        percent: formatPercent(
+                          item.confidencePercent,
+                          settings.language,
+                        ),
+                      })
+                }, ${formatEntryTimestamp(item.timestamp, undefined, settings.language, t)}`}
+                accessibilityHint={t("home.openChatHint")}
               >
                 {item.imageUri ? (
                   <Image
@@ -458,20 +506,33 @@ export default function HomeScreen({ navigation, route }: Props) {
                   </View>
                 )}
                 <View style={styles.historyTextWrap}>
-                  <Text style={styles.historyTitle}>{item.segregation}</Text>
+                  <Text style={styles.historyTitle}>
+                    {segregationLabel(item.segregation, t)}
+                  </Text>
                   <Text style={styles.historySubtitle}>
                     {item.type === "barcode"
-                      ? (item.label ?? "Barcode scan")
-                      : `${item.confidencePercent.toFixed(1)}% confidence`}
+                      ? (item.label ?? t("home.barcodeScan"))
+                      : t("home.confidenceLine", {
+                          percent: formatPercent(
+                            item.confidencePercent,
+                            settings.language,
+                          ),
+                        })}
                   </Text>
                   <Text style={styles.historyTimestamp}>
-                    {formatEntryTimestamp(item.timestamp)}
+                    {formatEntryTimestamp(
+                      item.timestamp,
+                      undefined,
+                      settings.language,
+                      t,
+                    )}
                   </Text>
                 </View>
                 <Feather
                   name="chevron-right"
                   size={20}
                   color={theme.colors.textMuted}
+                  style={rtlIconStyle(theme.isRTL)}
                 />
               </TouchableOpacity>
             )}
@@ -504,9 +565,10 @@ function createStyles(theme: Theme) {
       flex: 1,
     },
     title: {
-      fontSize: 34,
+      fontSize: 34 * theme.scriptScale,
       fontWeight: "800",
       color: colors.text,
+      fontFamily: theme.fontFamily,
     },
     subtitle: {
       color: colors.textMuted,
@@ -781,6 +843,24 @@ function createStyles(theme: Theme) {
     },
     askAiButtonText: {
       color: colors.onAccent,
+      fontWeight: "700",
+      fontSize: 16,
+    },
+    dropoffButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      paddingVertical: 14,
+      minHeight: 52,
+      marginTop: 10,
+      borderWidth: theme.borderWidth,
+      borderColor: colors.border,
+    },
+    dropoffButtonText: {
+      color: colors.text,
       fontWeight: "700",
       fontSize: 16,
     },

@@ -15,8 +15,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { formatPercent } from "../lib/format";
 import { formatClockTime } from "../lib/formatDate";
 import {
   buildSystemPrompt,
@@ -30,23 +32,26 @@ import {
   loadConversation,
   saveConversation,
 } from "../storage/chat";
+import { useSettings } from "../theme/ThemeContext";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Chat">;
 
-const SUGGESTIONS = [
-  "How should I dispose of this?",
-  "What is this made of?",
-  "What is the environmental impact?",
-];
-
 function createId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function segregationLabel(value: string, t: (key: string) => string): string {
+  return value.toLowerCase().includes("recycl")
+    ? t("result.recyclable")
+    : t("result.trash");
 }
 
 export default function ChatScreen({ navigation, route }: Props) {
   const { classification } = route.params;
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const { t } = useTranslation();
+  const { settings } = useSettings();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -62,8 +67,17 @@ export default function ChatScreen({ navigation, route }: Props) {
       buildSystemPrompt(
         classification.segregation,
         classification.confidencePercent,
+        {
+          language: settings.language,
+          simpleLanguage: settings.simpleLanguage,
+        },
       ),
-    [classification.segregation, classification.confidencePercent],
+    [
+      classification.segregation,
+      classification.confidencePercent,
+      settings.language,
+      settings.simpleLanguage,
+    ],
   );
 
   useFocusEffect(
@@ -99,10 +113,10 @@ export default function ChatScreen({ navigation, route }: Props) {
   }, [messages, isSending]);
 
   const clearChat = useCallback(() => {
-    Alert.alert("Clear chat", "This deletes the conversation for this item.", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("chat.clearChat"), t("chat.clearConfirm"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "Clear",
+        text: t("common.clear"),
         style: "destructive",
         onPress: () => {
           setMessages([]);
@@ -111,14 +125,14 @@ export default function ChatScreen({ navigation, route }: Props) {
         },
       },
     ]);
-  }, [classification.id]);
+  }, [classification.id, t]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () =>
         messages.length > 0 ? (
           <TouchableOpacity onPress={clearChat} hitSlop={8}>
-            <Text style={styles.headerButton}>Clear chat</Text>
+            <Text style={styles.headerButton}>{t("chat.clearChat")}</Text>
           </TouchableOpacity>
         ) : null,
     });
@@ -139,7 +153,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         },
       ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : t("common.error"));
     } finally {
       setIsSending(false);
     }
@@ -190,9 +204,9 @@ export default function ChatScreen({ navigation, route }: Props) {
                 style={styles.summaryImage}
               />
               <View style={styles.summaryTextWrap}>
-                <Text style={styles.summaryLabel}>Segregation</Text>
+                <Text style={styles.summaryLabel}>{t("result.segregation")}</Text>
                 <Text style={styles.summaryTitle}>
-                  {classification.segregation}
+                  {segregationLabel(classification.segregation, t)}
                 </Text>
                 <View
                   style={[
@@ -201,7 +215,12 @@ export default function ChatScreen({ navigation, route }: Props) {
                   ]}
                 >
                   <Text style={styles.summaryBadgeText}>
-                    {classification.confidencePercent.toFixed(1)}% confidence
+                    {t("chat.confidenceBadge", {
+                      percent: formatPercent(
+                        classification.confidencePercent,
+                        settings.language,
+                      ),
+                    })}
                   </Text>
                 </View>
               </View>
@@ -210,26 +229,27 @@ export default function ChatScreen({ navigation, route }: Props) {
             {keyMissing && (
               <View style={styles.noticeCard}>
                 <Feather name="key" size={16} color="#92400e" />
-                <Text style={styles.noticeText}>
-                  Add EXPO_PUBLIC_OPENAI_API_KEY to a .env file and restart the
-                  dev server to enable the assistant.
-                </Text>
+                <Text style={styles.noticeText}>{t("chat.keyMissing")}</Text>
               </View>
             )}
 
             {messages.length === 0 && !keyMissing && (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>
-                  Ask anything about this item
-                </Text>
+                <Text style={styles.emptyTitle}>{t("chat.askAnything")}</Text>
                 <View style={styles.suggestionWrap}>
-                  {SUGGESTIONS.map((suggestion) => (
+                  {(
+                    [
+                      "chat.suggestionDispose",
+                      "chat.suggestionMadeOf",
+                      "chat.suggestionImpact",
+                    ] as const
+                  ).map((key) => (
                     <TouchableOpacity
-                      key={suggestion}
+                      key={key}
                       style={styles.suggestionChip}
-                      onPress={() => send(suggestion)}
+                      onPress={() => send(t(key))}
                     >
-                      <Text style={styles.suggestionText}>{suggestion}</Text>
+                      <Text style={styles.suggestionText}>{t(key)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -247,7 +267,7 @@ export default function ChatScreen({ navigation, route }: Props) {
                 </Text>
               </View>
               <Text style={[styles.timestamp, isUser && styles.timestampRight]}>
-                {formatClockTime(item.createdAt)}
+                {formatClockTime(item.createdAt, settings.language)}
               </Text>
             </View>
           );
@@ -258,7 +278,7 @@ export default function ChatScreen({ navigation, route }: Props) {
               <View style={styles.assistantRow}>
                 <View style={[styles.bubble, styles.assistantBubble, styles.thinkingBubble]}>
                   <ActivityIndicator size="small" color="#065f46" />
-                  <Text style={styles.assistantText}>thinking...</Text>
+                  <Text style={styles.assistantText}>{t("chat.thinking")}</Text>
                 </View>
               </View>
             )}
@@ -270,7 +290,7 @@ export default function ChatScreen({ navigation, route }: Props) {
                   style={styles.errorRetry}
                   onPress={() => requestReply(messages)}
                 >
-                  <Text style={styles.errorRetryText}>Try again</Text>
+                  <Text style={styles.errorRetryText}>{t("chat.tryAgain")}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -284,7 +304,9 @@ export default function ChatScreen({ navigation, route }: Props) {
             style={styles.input}
             value={draft}
             onChangeText={setDraft}
-            placeholder={keyMissing ? "Add an API key to chat" : "Ask a follow-up..."}
+            placeholder={
+              keyMissing ? t("chat.placeholderNoKey") : t("chat.placeholder")
+            }
             placeholderTextColor="#9ca3af"
             editable={!keyMissing}
             multiline
@@ -298,10 +320,7 @@ export default function ChatScreen({ navigation, route }: Props) {
             <Feather name="arrow-up" size={20} color="#ffffff" />
           </TouchableOpacity>
         </View>
-        <Text style={styles.disclaimer}>
-          AI responses may be inaccurate. Verify with your local recycling
-          authority for definitive guidance.
-        </Text>
+        <Text style={styles.disclaimer}>{t("chat.disclaimer")}</Text>
       </View>
     </KeyboardAvoidingView>
   );
